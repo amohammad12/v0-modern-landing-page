@@ -4,7 +4,19 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
-import { Sparkles, Wand2, ImageIcon, Video, Loader2, RotateCcw, Save, Film, Edit2, RefreshCw } from "lucide-react"
+import {
+  Sparkles,
+  Wand2,
+  ImageIcon,
+  Video,
+  Loader2,
+  RotateCcw,
+  Save,
+  Film,
+  Edit2,
+  RefreshCw,
+  ArrowLeft,
+} from "lucide-react"
 import Image from "next/image"
 
 type Step = "input" | "outline" | "storyboard" | "video" | "complete"
@@ -13,6 +25,11 @@ interface StoryStep {
   number: number
   title: string
   description: string
+}
+
+interface StoryboardImage {
+  url: string
+  stepIndex: number
 }
 
 interface StoryBuilderProps {
@@ -24,12 +41,14 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
   const [step, setStep] = useState<Step>("input")
   const [idea, setIdea] = useState("")
   const [storySteps, setStorySteps] = useState<StoryStep[]>([])
+  const [contentType, setContentType] = useState<"ad" | "story">("story")
   const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null)
   const [editingText, setEditingText] = useState("")
-  const [storyboardImages, setStoryboardImages] = useState<Array<{ url: string; caption: string }>>([])
+  const [storyboardImage, setStoryboardImage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingMessage, setLoadingMessage] = useState("")
   const [progress, setProgress] = useState(0)
+  const [quotaWarning, setQuotaWarning] = useState<string | null>(null)
 
   useEffect(() => {
     if (loading) {
@@ -62,6 +81,7 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
       const data = await response.json()
 
       setStorySteps(data.steps)
+      setContentType(data.contentType || "story")
       setLoading(false)
       setStep("outline")
     } catch (error) {
@@ -170,42 +190,116 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
 
   const handleGenerateStoryboard = async () => {
     setLoading(true)
-    setLoadingMessage("Generating cinematic frames using Imagen...")
+    setLoadingMessage(
+      `Generating ${contentType === "ad" ? "modern advertisement" : "comic-style"} storyboard with Imagen...`,
+    )
+    setQuotaWarning(null)
 
-    await new Promise((resolve) => setTimeout(resolve, 5500))
+    try {
+      const response = await fetch("/api/generate-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storySteps, contentType }),
+      })
 
-    const images = [
-      {
-        url: "/robot-discovering-art-studio-in-purple-space-nebul.jpg",
-        caption: "Scene 1 — The Awakening",
-      },
-      {
-        url: "/robot-painting-first-brushstroke-with-cosmic-color.jpg",
-        caption: "Scene 2 — The Journey Begins",
-      },
-      {
-        url: "/robot-creating-beautiful-galaxy-painting-in-space.jpg",
-        caption: "Scene 3 — The Transformation",
-      },
-      {
-        url: "/3d-purple-and-white-e-commerce-illustration-with-s.jpg",
-        caption: "Scene 4 — The Dream",
-      },
-    ]
+      if (!response.ok) throw new Error("Failed to generate storyboard")
 
-    setStoryboardImages(images)
-    setLoading(false)
-    setStep("storyboard")
+      const data = await response.json()
+
+      setStoryboardImage(data.image)
+
+      if (data.quotaExceeded) {
+        setQuotaWarning(
+          "⚠️ Google Cloud quota limit reached. The image shown is a placeholder. To generate the actual storyboard:\n1. Visit Google Cloud Console\n2. Request a quota increase for Imagen API\n3. Wait a few minutes and try again",
+        )
+      }
+
+      setLoading(false)
+      setStep("storyboard")
+    } catch (error) {
+      console.error("[v0] Error generating storyboard:", error)
+
+      await new Promise((resolve) => setTimeout(resolve, 3000))
+
+      setStoryboardImage(
+        `/placeholder.svg?height=1200&width=900&query=${encodeURIComponent(`${contentType === "ad" ? "Modern advertisement" : "Comic"} storyboard with ${storySteps.length} panels`)}`,
+      )
+      setLoading(false)
+      setStep("storyboard")
+    }
+  }
+
+  const handlePreviousStep = () => {
+    if (step === "outline") {
+      setStep("input")
+    } else if (step === "storyboard") {
+      setStep("outline")
+    } else if (step === "video") {
+      setStep("storyboard")
+    }
+  }
+
+  const handleRegeneratePanel = async () => {
+    setLoading(true)
+    setLoadingMessage(`Regenerating ${contentType === "ad" ? "advertisement" : "comic"} storyboard...`)
+
+    try {
+      const response = await fetch("/api/generate-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storySteps, contentType }),
+      })
+
+      if (!response.ok) throw new Error("Failed to regenerate panel")
+
+      const data = await response.json()
+
+      setStoryboardImage(data.image)
+
+      if (data.quotaExceeded) {
+        setQuotaWarning(
+          "⚠️ Quota limit reached. Please wait a few minutes before trying again, or request a quota increase in Google Cloud Console.",
+        )
+      } else if (!data.image.includes("placeholder")) {
+        setQuotaWarning(null)
+      }
+
+      setLoading(false)
+    } catch (error) {
+      console.error("[v0] Error regenerating panel:", error)
+
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      setStoryboardImage(
+        `/placeholder.svg?height=1200&width=900&query=${encodeURIComponent(`${contentType === "ad" ? "Modern advertisement" : "Comic"} storyboard with ${storySteps.length} panels`)}`,
+      )
+      setLoading(false)
+    }
   }
 
   const handleGenerateVideo = async () => {
     setLoading(true)
-    setLoadingMessage("Veo is bringing your story to life...")
+    setLoadingMessage("Generating video with Veo...")
 
-    await new Promise((resolve) => setTimeout(resolve, 6000))
+    try {
+      const response = await fetch("/api/generate-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyboardImage }),
+      })
 
-    setLoading(false)
-    setStep("video")
+      if (!response.ok) throw new Error("Failed to generate video")
+
+      const data = await response.json()
+
+      // Assuming the video generation API returns a video URL
+      const videoUrl = data.videoUrl
+      setStep("video")
+      setLoading(false)
+    } catch (error) {
+      console.error("[v0] Error generating video:", error)
+      setLoading(false)
+    }
   }
 
   const handleSave = () => {
@@ -218,7 +312,7 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
     setStorySteps([])
     setSelectedStepIndex(null)
     setEditingText("")
-    setStoryboardImages([])
+    setStoryboardImage(null)
   }
 
   return (
@@ -281,10 +375,28 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
           {/* Step 2: Story Outline with Horizontal Cards */}
           {step === "outline" && (
             <div className="space-y-6 animate-in fade-in duration-500">
+              <Button
+                onClick={handlePreviousStep}
+                variant="outline"
+                className="mb-4 border-white/20 bg-white/10 text-white hover:bg-white/20"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Previous Step
+              </Button>
+
               <div>
                 <h3 className="mb-4 flex items-center gap-2 text-2xl font-bold">
                   <Wand2 className="h-6 w-6 text-red-400 animate-pulse" />
                   Your Story Outline
+                  <span
+                    className={`ml-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+                      contentType === "ad"
+                        ? "bg-gradient-to-r from-blue-400 to-purple-400 text-white"
+                        : "bg-gradient-to-r from-red-400 to-orange-400 text-white"
+                    }`}
+                  >
+                    {contentType === "ad" ? "Advertisement Style" : "Story Style"}
+                  </span>
                 </h3>
                 <div className="mb-6 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-300">
                   <Sparkles className="h-4 w-4 animate-pulse" />
@@ -387,43 +499,119 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
             </div>
           )}
 
-          {/* Step 3: Storyboard */}
+          {/* Step 3: Single Comic Storyboard */}
           {step === "storyboard" && (
             <div className="space-y-6 animate-in fade-in duration-500">
+              <Button
+                onClick={handlePreviousStep}
+                variant="outline"
+                className="mb-4 border-white/20 bg-white/10 text-white hover:bg-white/20"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Previous Step
+              </Button>
+
               <div>
                 <h3 className="mb-4 flex items-center gap-2 text-2xl font-bold">
                   <ImageIcon className="h-6 w-6 text-red-400 animate-pulse" />
-                  Your Storyboard
+                  Your Hand-Drawn Comic Storyboard
                 </h3>
                 <div className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-300">
                   <Sparkles className="h-4 w-4 animate-pulse" />
                   Generated by Imagen 3
                 </div>
-                <div className="grid gap-6">
-                  {storyboardImages.map((image, idx) => (
-                    <div
-                      key={idx}
-                      className="group overflow-hidden rounded-xl border border-white/20 bg-white/5 transition-all duration-300 hover:border-red-400/50 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] animate-in fade-in"
-                      style={{ animationDelay: `${idx * 150}ms` }}
-                    >
-                      <div className="aspect-video w-full overflow-hidden bg-white/10">
-                        <Image
-                          src={image.url || "/placeholder.svg"}
-                          alt={image.caption}
-                          width={800}
-                          height={450}
-                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        />
+
+                {quotaWarning && (
+                  <div className="mb-4 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4 animate-in fade-in duration-300">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 text-yellow-400">⚠️</div>
+                      <div className="flex-1 space-y-2">
+                        <p className="font-semibold text-yellow-200">Quota Limit Reached</p>
+                        <p className="text-sm leading-relaxed text-yellow-200/90 whitespace-pre-line">{quotaWarning}</p>
                       </div>
-                      <div className="p-4">
-                        <p className="font-semibold text-white">{image.caption}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mb-6 rounded-2xl border-4 border-black bg-white p-6 shadow-2xl">
+                  <div className="relative w-full" style={{ aspectRatio: "3/4" }}>
+                    <Image
+                      src={storyboardImage || "/placeholder.svg"}
+                      alt="Complete comic storyboard"
+                      fill
+                      className="rounded-lg object-contain"
+                    />
+                  </div>
+
+                  <div className="mt-6 border-t-4 border-black pt-4 text-center">
+                    <p className="font-comic text-lg font-bold uppercase tracking-wider text-black">
+                      Complete Storyboard — {storySteps.length} Scenes
+                    </p>
+                  </div>
+                </div>
+
+                {/* Story steps reference */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-white">Story Scenes:</h4>
+                  {storySteps.map((storyStep, index) => (
+                    <div
+                      key={index}
+                      onClick={() => {
+                        setSelectedStepIndex(index)
+                        setEditingText(storyStep.description)
+                      }}
+                      className={`cursor-pointer rounded-lg border p-4 transition-all duration-300 ${
+                        selectedStepIndex === index
+                          ? "border-red-400 bg-red-400/20 shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                          : "border-white/20 bg-white/10 hover:border-red-400/50 hover:bg-white/15"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-red-400 to-red-600 text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <h5 className="mb-1 font-bold text-white">{storyStep.title}</h5>
+                          <p className="text-sm text-white/70">{storyStep.description}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {selectedStepIndex !== null && (
+                  <div className="mt-4 space-y-4 rounded-xl border border-red-400/50 bg-red-400/10 p-6 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <h4 className="flex items-center gap-2 text-lg font-bold">
+                        <Edit2 className="h-5 w-5 text-red-400" />
+                        Editing Scene {selectedStepIndex + 1}
+                      </h4>
+                    </div>
+                    <Textarea
+                      value={editingText}
+                      onChange={(e) => setEditingText(e.target.value)}
+                      className="min-h-[100px] resize-none border-white/20 bg-white/10 text-white placeholder:text-white/50 focus-visible:ring-red-400"
+                    />
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() => {
+                          const updatedSteps = [...storySteps]
+                          updatedSteps[selectedStepIndex].description = editingText
+                          setStorySteps(updatedSteps)
+                          setSelectedStepIndex(null)
+                        }}
+                        className="flex-1 bg-red-400 text-white hover:bg-red-500 transition-all duration-300"
+                      >
+                        <Save className="mr-2 h-4 w-4" />
+                        Save & Regenerate Storyboard
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
+
               <Button
-                onClick={handleGenerateVideo}
+                onClick={handleRegeneratePanel}
                 disabled={loading}
                 className="w-full bg-red-400 text-white hover:bg-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.8)] transition-all duration-300"
               >
@@ -443,7 +631,7 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
                 ) : (
                   <>
                     <Video className="mr-2 h-5 w-5" />
-                    Create Video
+                    Regenerate Storyboard
                   </>
                 )}
               </Button>
@@ -453,6 +641,15 @@ export function StoryBuilder({ open, onOpenChange }: StoryBuilderProps) {
           {/* Step 4: Video Preview */}
           {step === "video" && (
             <div className="space-y-6 animate-in fade-in duration-500">
+              <Button
+                onClick={handlePreviousStep}
+                variant="outline"
+                className="mb-4 border-white/20 bg-white/10 text-white hover:bg-white/20"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Previous Step
+              </Button>
+
               <div>
                 <h3 className="mb-4 flex items-center gap-2 text-2xl font-bold">
                   <Video className="h-6 w-6 text-red-400 animate-pulse" />

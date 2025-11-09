@@ -1,6 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Geist, Geist_Mono, Audiowide } from "next/font/google"
+import { Geist, Geist_Mono, Audiowide, Comic_Neue } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 
@@ -10,6 +10,11 @@ const aurora = Audiowide({
   weight: "400",
   subsets: ["latin"],
   variable: "--font-aurora",
+})
+const comicFont = Comic_Neue({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-comic",
 })
 
 export const metadata: Metadata = {
@@ -25,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${aurora.className} font-sans antialiased`}>
+      <body className={`${aurora.className} ${comicFont.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>

@@ -78,6 +78,8 @@
   /* Updated font-sans to use Aurora (Audiowide) */
   --font-sans: "Audiowide", "Arial", sans-serif;
   --font-mono: "Audiowide", "Arial", sans-serif;
+  /* Adding Comic Neue font for comic strip text */
+  --font-comic: var(--font-comic), "Comic Sans MS", cursive;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

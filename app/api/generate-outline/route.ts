@@ -28,12 +28,17 @@ export async function POST(request: Request) {
             {
               parts: [
                 {
-                  text: `You are a creative story writer. Given the following story idea, expand it into a detailed story outline with exactly 5 steps/scenes. Each step should have a short title (3-5 words) and a description (2-3 sentences).
+                  text: `You are a creative story writer. Given the following idea, first determine if this is an advertisement/promotional content or a narrative story, then expand it into a detailed outline with exactly 5 steps/scenes.
 
-Story Idea: "${prompt}"
+User's Idea: "${prompt}"
+
+First, analyze the content type:
+- If it mentions products, services, brands, marketing, sales, promotion, advertisement, or commercial purposes → classify as "ad"
+- If it tells a story with characters, plot, narrative, or creative storytelling → classify as "story"
 
 Return your response as a JSON object with this exact structure:
 {
+  "contentType": "ad" or "story",
   "steps": [
     {"number": 1, "title": "...", "description": "..."},
     {"number": 2, "title": "...", "description": "..."},
@@ -43,7 +48,7 @@ Return your response as a JSON object with this exact structure:
   ]
 }
 
-Make the story engaging, cinematic, and appropriate for visual storytelling.`,
+Make the outline engaging, cinematic, and appropriate for visual storytelling.`,
                 },
               ],
             },
